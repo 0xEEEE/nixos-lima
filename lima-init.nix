@@ -28,30 +28,6 @@ let
     usermod -a -G wheel "$LIMA_CIDATA_USER"
     usermod -a -G users "$LIMA_CIDATA_USER"
 
-    # Add mounts to /etc/fstab
-    echo "Adding mounts to /etc/fstab"
-    sed -i '/#LIMA-START/,/#LIMA-END/d' /etc/fstab
-    echo "#LIMA-START" >> /etc/fstab
-    awk -f- "${LIMA_CIDATA_MNT}"/user-data <<'EOF' >> /etc/fstab
-    /^mounts:/ {
-        flag = 1
-        next
-    }
-    /^[^:]*:/ {
-        flag = 0
-    }
-    /^ *$/ {
-        flag = 0
-    }
-    flag {
-        sub(/^ *- \[/, "")
-        sub(/"?\] *$/, "")
-        gsub("\"?, \"?", "\t")
-        print $0
-    }
-EOF
-    echo "#LIMA-END" >> /etc/fstab
-
     # Run system provisioning scripts
     echo "Running system provisioning scripts"
     if [ -d "${LIMA_CIDATA_MNT}"/provision.system ]; then
@@ -84,9 +60,6 @@ EOF
     fi
 
 
-    systemctl daemon-reload
-    systemctl restart local-fs.target
-
     #echo "$LIMA_CIDATA_SLIRP_GATEWAY host.lima.internal" >> /etc/hosts
 
     cp "${LIMA_CIDATA_MNT}"/meta-data /run/lima-ssh-ready
@@ -116,6 +89,61 @@ in {
                 Type = "oneshot";
                 RemainAfterExit = true;
             };
+        };
+
+        # Generate systemd mount units from Lima user-data at boot.
+        # Replaces the imperative sed/awk /etc/fstab editing that conflicted
+        # with NixOS's declarative fstab management.
+        systemd.services.lima-mounts = {
+            description = "Create systemd mount units from Lima user-data";
+            after = [ "lima-init.service" ];
+            requires = [ "lima-init.service" ];
+            before = [ "local-fs.target" ];
+            wantedBy = [ "local-fs.target" ];
+            serviceConfig = {
+                Type = "oneshot";
+                RemainAfterExit = true;
+            };
+            path = [ pkgs.gawk pkgs.systemd pkgs.util-linux ];
+            script = ''
+                CIDATA="${LIMA_CIDATA_MNT}"
+                [ -f "$CIDATA/user-data" ] || exit 0
+                awk '
+                    /^mounts:/ { flag = 1; next }
+                    /^[^:]*:/ { flag = 0 }
+                    /^ *$/ { flag = 0 }
+                    flag {
+                        sub(/^ *- \[/, "")
+                        sub(/"?\] *$/, "")
+                        n = split($0, fields, /"?, "?/)
+                        if (n >= 3) {
+                            dev = fields[1]; mp = fields[2]; fstype = fields[3]
+                            opts = (n >= 4) ? fields[4] : "defaults"
+                            print dev "\t" mp "\t" fstype "\t" opts
+                        }
+                    }
+                ' "$CIDATA/user-data" | while IFS=$'\t' read -r dev mp fstype opts; do
+                    [ -z "$mp" ] && continue
+                    mkdir -p "$mp"
+                    unit_name=$(systemd-escape --path --suffix=mount "$mp")
+                    cat > "/run/systemd/system/$unit_name" <<UNIT
+[Unit]
+Description=Lima mount $mp
+After=lima-mounts.service
+
+[Mount]
+What=$dev
+Where=$mp
+Type=$fstype
+Options=$opts
+UNIT
+                done
+                systemctl daemon-reload
+                # Start all lima mounts
+                for unit in /run/systemd/system/*.mount; do
+                    [ -f "$unit" ] && systemctl start "$(basename "$unit")" || true
+                done
+            '';
         };
 
         systemd.services.lima-guestagent =  {
