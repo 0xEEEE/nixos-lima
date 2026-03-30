@@ -31,6 +31,10 @@ portForwards:
     guestPort: 68
     guestIP: 0.0.0.0
     ignore: true
+  # Block cloud metadata service access to prevent credential theft
+  # if the host is running in a cloud environment (EC2, GCE, etc.)
+  - guestIP: "169.254.169.254"
+    ignore: true
 
 containerd:
   system: false
