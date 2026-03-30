@@ -169,8 +169,16 @@ UNIT
             options = [ "ro" "mode=0700" "dmode=0700" "overriderockperm" "exec" "uid=0" ];
         };
 
+        # Conditionally link /etc/environment from cidata if available.
+        # Using activation script instead of environment.etc.source to avoid
+        # failures when cidata mount is not yet available during activation.
+        system.activationScripts.lima-environment = ''
+            if [ -f "${LIMA_CIDATA_MNT}/etc_environment" ]; then
+                ln -sfn "${LIMA_CIDATA_MNT}/etc_environment" /etc/environment
+            fi
+        '';
+
         environment.etc = {
-            environment.source = "${LIMA_CIDATA_MNT}/etc_environment";
 
             # Declarative script for SSH AuthorizedKeysCommand — reads keys
             # from Lima cidata at connection time instead of imperatively
