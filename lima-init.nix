@@ -21,12 +21,13 @@ let
 
     export PATH=${pkgs.lib.makeBinPath [ pkgs.shadow pkgs.gawk pkgs.mount ]}:$PATH
 
-    # Create user
-    id -u "$LIMA_CIDATA_USER" >/dev/null 2>&1 || useradd --home-dir "$LIMA_CIDATA_HOME" --create-home --uid "$LIMA_CIDATA_UID" "$LIMA_CIDATA_USER"
-
-    # Add user to sudoers
-    usermod -a -G wheel "$LIMA_CIDATA_USER"
-    usermod -a -G users "$LIMA_CIDATA_USER"
+    # Create/adjust user — the default user is declared in NixOS config
+    # (users.users), but cidata may specify a different name or UID.
+    # Only do imperative user creation if the cidata user doesn't exist.
+    if ! id -u "$LIMA_CIDATA_USER" >/dev/null 2>&1; then
+        useradd --home-dir "$LIMA_CIDATA_HOME" --create-home \
+            --uid "$LIMA_CIDATA_UID" --groups wheel,users "$LIMA_CIDATA_USER"
+    fi
 
     # Run system provisioning scripts
     echo "Running system provisioning scripts"
@@ -72,10 +73,26 @@ in {
     options = {
         services.lima = {
             enable = lib.mkEnableOption "lima-init, lima-guestagent, other Lima support";
+
+            defaultUser = lib.mkOption {
+                type = lib.types.str;
+                default = "lima";
+                description = "Default Lima user name. Overridden at runtime if cidata specifies a different user.";
+            };
         };
     };
 
     config = lib.mkIf cfg.enable {
+        # Declarative user baseline — defines the default Lima user with
+        # correct group memberships. mutableUsers allows the init script
+        # to adjust UID/username at runtime if cidata specifies differently.
+        users.mutableUsers = true;
+        users.users."${cfg.defaultUser}" = {
+            isNormalUser = true;
+            extraGroups = [ "wheel" "users" ];
+            shell = pkgs.bash;
+        };
+
         systemd.services.lima-init = {
             inherit script;
             description = "Reconfigure the system from lima-init userdata on startup";
