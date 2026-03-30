@@ -11,8 +11,7 @@ in {
             description = "Create systemd mount units from Lima user-data";
             after = [ "lima-init.service" ];
             requires = [ "lima-init.service" ];
-            before = [ "local-fs.target" ];
-            wantedBy = [ "local-fs.target" ];
+            wantedBy = [ "multi-user.target" ];
             serviceConfig = {
                 Type = "oneshot";
                 RemainAfterExit = true;
@@ -27,8 +26,9 @@ in {
                     /^ *$/ { flag = 0 }
                     flag {
                         sub(/^ *- \[/, "")
-                        sub(/"?\] *$/, "")
-                        n = split($0, fields, /"?, "?/)
+                        sub(/\] *$/, "")
+                        gsub(/"/, "")
+                        n = split($0, fields, ", *")
                         if (n >= 3) {
                             dev = fields[1]; mp = fields[2]; fstype = fields[3]
                             opts = (n >= 4) ? fields[4] : "defaults"
