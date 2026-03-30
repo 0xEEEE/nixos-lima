@@ -28,22 +28,6 @@ let
     usermod -a -G wheel "$LIMA_CIDATA_USER"
     usermod -a -G users "$LIMA_CIDATA_USER"
 
-    # Create authorized_keys
-    LIMA_CIDATA_SSHDIR="$LIMA_CIDATA_HOME"/.ssh
-    mkdir -p -m 700 "$LIMA_CIDATA_SSHDIR"
-    awk '
-    match($0, /^([[:space:]]*)ssh-authorized-keys:/, m) { ident="^" m[1] "[[:space:]]+-[[:space:]]+"; flag=1; next }
-    flag && $0 !~ ident { flag=0; next }
-    flag && $0 ~ ident { sub(ident, ""); gsub("\"", ""); print $0 }
-    ' "${LIMA_CIDATA_MNT}"/user-data >"$LIMA_CIDATA_SSHDIR"/authorized_keys
-    LIMA_CIDATA_GID=$(id -g "$LIMA_CIDATA_USER")
-    chown -R "$LIMA_CIDATA_UID:$LIMA_CIDATA_GID" "$LIMA_CIDATA_SSHDIR"
-    chmod 600 "$LIMA_CIDATA_SSHDIR"/authorized_keys
-
-    LIMA_SSH_KEYS_CONF=/etc/ssh/authorized_keys.d
-    mkdir -p -m 700 "$LIMA_SSH_KEYS_CONF"
-    cp "$LIMA_CIDATA_SSHDIR"/authorized_keys "$LIMA_SSH_KEYS_CONF/$LIMA_CIDATA_USER"
-
     # Add mounts to /etc/fstab
     echo "Adding mounts to /etc/fstab"
     sed -i '/#LIMA-START/,/#LIMA-END/d' /etc/fstab
@@ -159,6 +143,31 @@ in {
 
         environment.etc = {
             environment.source = "${LIMA_CIDATA_MNT}/etc_environment";
+
+            # Declarative script for SSH AuthorizedKeysCommand — reads keys
+            # from Lima cidata at connection time instead of imperatively
+            # parsing YAML and managing files/permissions in the init script
+            "ssh/lima-authorized-keys" = {
+                mode = "0755";
+                text = ''
+                    #!/bin/sh
+                    CIDATA="${LIMA_CIDATA_MNT}"
+                    [ -f "$CIDATA/user-data" ] || exit 0
+                    ${pkgs.gawk}/bin/awk '
+                        match($0, /^([[:space:]]*)ssh-authorized-keys:/, m) { ident="^" m[1] "[[:space:]]+-[[:space:]]+"; flag=1; next }
+                        flag && $0 !~ ident { flag=0; next }
+                        flag && $0 ~ ident { sub(ident, ""); gsub("\"", ""); print $0 }
+                    ' "$CIDATA/user-data"
+                '';
+            };
+        };
+
+        # Use AuthorizedKeysCommand to dynamically read SSH keys from cidata.
+        # This replaces the imperative awk+mkdir+chown+chmod+cp chain that
+        # was in the lima-init script. OpenSSH handles all permissions itself.
+        services.openssh.settings = {
+            AuthorizedKeysCommand = "/etc/ssh/lima-authorized-keys %u";
+            AuthorizedKeysCommandUser = "nobody";
         };
 
         networking.nat.enable = true;
