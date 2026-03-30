@@ -23,7 +23,8 @@ in {
 
         services.openssh.settings = {
             AuthorizedKeysCommand = "/etc/ssh/lima-authorized-keys %u";
-            AuthorizedKeysCommandUser = "nobody";
+            # Must run as root because cidata is mounted with mode=0700,uid=0
+            AuthorizedKeysCommandUser = "root";
         };
     };
 }
