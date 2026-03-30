@@ -53,7 +53,12 @@ UNIT
                 done
                 systemctl daemon-reload
                 for unit in /run/systemd/system/*.mount; do
-                    [ -f "$unit" ] && systemctl start "$(basename "$unit")" || true
+                    [ -f "$unit" ] || continue
+                    mp=$(grep "^Where=" "$unit" | cut -d= -f2)
+                    # Skip if already mounted (Lima vz handles virtiofs natively)
+                    if [ -n "$mp" ] && ! mountpoint -q "$mp" 2>/dev/null; then
+                        systemctl start "$(basename "$unit")" || true
+                    fi
                 done
             '';
         };
