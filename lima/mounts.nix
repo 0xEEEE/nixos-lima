@@ -42,13 +42,12 @@ in {
                     cat > "/run/systemd/system/$unit_name" <<UNIT
 [Unit]
 Description=Lima mount $mp
-After=lima-mounts.service
 
 [Mount]
 What=$dev
 Where=$mp
 Type=$fstype
-Options=$opts
+Options=$opts,nofail
 TimeoutSec=10
 UNIT
                 done
@@ -62,8 +61,6 @@ UNIT
                         systemctl start --no-block "$(basename "$unit")" || true
                     fi
                 done
-                # Wait up to 10 seconds for mounts to complete
-                sleep 10 || true
             '';
         };
 
