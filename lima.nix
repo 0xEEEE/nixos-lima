@@ -2,7 +2,7 @@
 {
     imports = [
         (modulesPath + "/profiles/qemu-guest.nix")
-        ./lima-init.nix
+        ./lima
     ];
 
     nix.settings.experimental-features = [ "nix-command" "flakes" ];
