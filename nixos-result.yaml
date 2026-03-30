@@ -2,8 +2,13 @@
 # images locally, clone the git repo and then run:
 # nix build .#packages.aarch64-linux.img --out-link result-aarch64
 # or
-# nix build .#packages.aarch64-linux.img --out-link result-x86_64
+# nix build .#packages.x86_64-linux.img --out-link result-x86_64
 # to build the image.
+#
+# Optimized for Apple Silicon macOS (Virtualization.framework + virtiofs)
+vmType: "vz"
+mountType: "virtiofs"
+
 images:
   - location: "./result-aarch64/nixos.qcow2"
     arch: "aarch64"
@@ -13,13 +18,8 @@ images:
 mounts:
 - location: "~"
   writable: false
-  9p:
-    # Try choosing "mmap" or "none" if you see a stability issue with the default "fscache".
-    cache: "mmap"
 - location: "/tmp/lima"
   writable: true
-  9p:
-    cache: "mmap"
 
 memory: 8GiB
 

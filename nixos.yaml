@@ -1,4 +1,8 @@
-# Template using latest released nixos-lima images 
+# Template using latest released nixos-lima images
+# Optimized for Apple Silicon macOS (Virtualization.framework + virtiofs)
+vmType: "vz"
+mountType: "virtiofs"
+
 images:
   - location: "https://github.com/nixos-lima/nixos-lima/releases/download/v0.0.4/nixos-lima-v0.0.4-aarch64.qcow2"
     arch: "aarch64"
@@ -13,13 +17,8 @@ mounts:
   # sensitive files to the guest VM. Restrict to the working directory instead.
 - location: "~"
   writable: false
-  9p:
-    # Try choosing "mmap" or "none" if you see a stability issue with the default "fscache".
-    cache: "mmap"
 - location: "/tmp/lima"
   writable: true
-  9p:
-    cache: "mmap"
 
 memory: 8GiB
 

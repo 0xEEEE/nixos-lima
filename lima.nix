@@ -44,6 +44,12 @@
     # misc
     boot.kernelPackages = pkgs.linuxPackages_latest;
 
+    # Ensure virtiofs kernel module is available (required for vz mountType)
+    boot.kernelModules = [ "virtiofs" ];
+    boot.initrd.availableKernelModules = [
+        "virtio_pci" "virtio_blk" "virtio_scsi" "virtio_net" "virtiofs"
+    ];
+
     # pkgs
     environment.systemPackages = with pkgs; [
         vim
