@@ -49,6 +49,7 @@ What=$dev
 Where=$mp
 Type=$fstype
 Options=$opts
+TimeoutSec=10
 UNIT
                 done
                 systemctl daemon-reload
@@ -57,9 +58,12 @@ UNIT
                     mp=$(grep "^Where=" "$unit" | cut -d= -f2)
                     # Skip if already mounted (Lima vz handles virtiofs natively)
                     if [ -n "$mp" ] && ! mountpoint -q "$mp" 2>/dev/null; then
-                        systemctl start "$(basename "$unit")" || true
+                        # Use --no-block to avoid one stuck mount blocking all others
+                        systemctl start --no-block "$(basename "$unit")" || true
                     fi
                 done
+                # Wait up to 10 seconds for mounts to complete
+                sleep 10 || true
             '';
         };
 
