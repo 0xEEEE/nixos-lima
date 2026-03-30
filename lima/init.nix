@@ -46,8 +46,15 @@ in {
                 fi
 
                 # Signal boot readiness (provisioning runs as separate services)
-                cp "${cfg.cidataDir}"/meta-data /run/lima-ssh-ready
-                cp "${cfg.cidataDir}"/meta-data /run/lima-boot-done
+                # Lima >= 2.1.0 requires instance ID in signal files;
+                # older versions expect meta-data content.
+                if [ -n "$LIMA_CIDATA_IID" ]; then
+                    echo "$LIMA_CIDATA_IID" > /run/lima-ssh-ready
+                    echo "$LIMA_CIDATA_IID" > /run/lima-boot-done
+                else
+                    cp "${cfg.cidataDir}"/meta-data /run/lima-ssh-ready
+                    cp "${cfg.cidataDir}"/meta-data /run/lima-boot-done
+                fi
                 exit 0
             '';
         };
