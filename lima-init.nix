@@ -25,8 +25,8 @@ let
     id -u "$LIMA_CIDATA_USER" >/dev/null 2>&1 || useradd --home-dir "$LIMA_CIDATA_HOME" --create-home --uid "$LIMA_CIDATA_UID" "$LIMA_CIDATA_USER"
 
     # Add user to sudoers
-    usermod -a -G wheel $LIMA_CIDATA_USER
-    usermod -a -G users $LIMA_CIDATA_USER
+    usermod -a -G wheel "$LIMA_CIDATA_USER"
+    usermod -a -G users "$LIMA_CIDATA_USER"
 
     echo "fix symlink for /bin/bash"
     ln -fs /run/current-system/sw/bin/bash /bin/bash
