@@ -6,6 +6,6 @@
         format = "qcow2";
         partitionTableType = "efi";
         diskSize = "auto";
-        additionalSpace = "1024M";
+        additionalSpace = "2048M";
     };
 }
