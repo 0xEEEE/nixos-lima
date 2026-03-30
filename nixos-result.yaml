@@ -9,9 +9,11 @@
 vmType: "vz"
 mountType: "virtiofs"
 
-rosetta:
-  enabled: true
-  binfmt: true
+vmOpts:
+  vz:
+    rosetta:
+      enabled: true
+      binfmt: true
 
 images:
   - location: "./result-aarch64/nixos.qcow2"
