@@ -28,9 +28,6 @@ let
     usermod -a -G wheel "$LIMA_CIDATA_USER"
     usermod -a -G users "$LIMA_CIDATA_USER"
 
-    echo "fix symlink for /bin/bash"
-    ln -fs /run/current-system/sw/bin/bash /bin/bash
-
     # Create authorized_keys
     LIMA_CIDATA_SSHDIR="$LIMA_CIDATA_HOME"/.ssh
     mkdir -p -m 700 "$LIMA_CIDATA_SSHDIR"
@@ -171,6 +168,11 @@ in {
             sshfs
             fuse3
             git
+        ];
+
+        # Declarative /bin/bash symlink (replaces imperative ln in init script)
+        systemd.tmpfiles.rules = [
+            "L+ /bin/bash - - - - /run/current-system/sw/bin/bash"
         ];
 
         boot.kernel.sysctl = {
