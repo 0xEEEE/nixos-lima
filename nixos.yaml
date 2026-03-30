@@ -3,6 +3,10 @@
 vmType: "vz"
 mountType: "virtiofs"
 
+rosetta:
+  enabled: true
+  binfmt: true
+
 images:
   - location: "https://github.com/nixos-lima/nixos-lima/releases/download/v0.0.4/nixos-lima-v0.0.4-aarch64.qcow2"
     arch: "aarch64"
