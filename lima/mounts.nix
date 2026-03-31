@@ -50,17 +50,19 @@ Type=$fstype
 Options=$opts,nofail
 TimeoutSec=10
 UNIT
+                    # Track units we created
+                    echo "$unit_name" >> /run/lima-mount-units
                 done
                 systemctl daemon-reload
-                for unit in /run/systemd/system/*.mount; do
-                    [ -f "$unit" ] || continue
-                    mp=$(grep "^Where=" "$unit" | cut -d= -f2)
+                # Only start units we created (not pre-existing .mount files)
+                [ -f /run/lima-mount-units ] || exit 0
+                while read -r unit_name; do
+                    mp=$(grep "^Where=" "/run/systemd/system/$unit_name" 2>/dev/null | cut -d= -f2)
                     # Skip if already mounted (Lima vz handles virtiofs natively)
                     if [ -n "$mp" ] && ! mountpoint -q "$mp" 2>/dev/null; then
-                        # Use --no-block to avoid one stuck mount blocking all others
-                        systemctl start --no-block "$(basename "$unit")" || true
+                        systemctl start --no-block "$unit_name" || true
                     fi
-                done
+                done < /run/lima-mount-units
             '';
         };
 
