@@ -2,3 +2,6 @@ imgs/
 result
 .idea/
 keys/
+nixos.qcow2
+result-*
+.claude/
