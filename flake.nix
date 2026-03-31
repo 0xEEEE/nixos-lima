@@ -27,9 +27,9 @@
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             qemu
-            lima
-          ] ++ lib.optionals (pkgs ? lima-additional-guestagents) [
-            lima-additional-guestagents
+            (lima.override {
+              withAdditionalGuestAgents = true;
+            })
           ];
         };
       }) // {
