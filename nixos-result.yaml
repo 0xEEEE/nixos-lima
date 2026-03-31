@@ -22,8 +22,11 @@ images:
     arch: "x86_64"
 
 mounts:
-- location: "~"
-  writable: false
+  # Security: only mount ~/Projects instead of entire home directory.
+  # Mounting ~ exposes ~/.ssh, ~/.aws, ~/.kube, browser profiles, and
+  # other credentials to the guest VM. Restrict to project files only.
+- location: "~/Projects"
+  writable: true
 - location: "/tmp/lima"
   writable: true
 

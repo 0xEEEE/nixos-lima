@@ -18,11 +18,11 @@ images:
     digest: "sha512:5daac286d415a579ca659a98de864fe04ab7a1879d4e4608e3edcd2e931f1848f88ed07316e69a1131ab35b88158b999a21cc5ccf9be9c3d04f51a7e58dc8580"
 
 mounts:
-  # Only mount the current working directory, not the entire home directory.
-  # Mounting ~ exposes SSH keys, cloud credentials, browser profiles, and other
-  # sensitive files to the guest VM. Restrict to the working directory instead.
-- location: "~"
-  writable: false
+  # Security: only mount ~/Projects instead of entire home directory.
+  # Mounting ~ exposes ~/.ssh, ~/.aws, ~/.kube, browser profiles, and
+  # other credentials to the guest VM. Restrict to project files only.
+- location: "~/Projects"
+  writable: true
 - location: "/tmp/lima"
   writable: true
 
