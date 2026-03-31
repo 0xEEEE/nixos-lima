@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+      fail-fast: false
+    env:
+      HOST_ARCH: ${{ matrix.os == 'ubuntu-24.04' && 'x86_64' || (matrix.os == 'ubuntu-24.04-arm' && 'aarch64') || 'unknown' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install qemu-utils
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-utils
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@96951a368ba55167b55f1c916f7d416bac6505fe # v31
+        env:
+          SYSTEM_FEATURES: ${{ env.HOST_ARCH == 'aarch64' && 'kvm aarch64-linux' || 'kvm' }}
+        with:
+          extra_nix_config: |
+            system-features = ${{ env.SYSTEM_FEATURES }}
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build ${{ env.HOST_ARCH }} Image
+        run: |
+          nix build .#packages.${{ env.HOST_ARCH }}-linux.img --out-link result
+          qemu-img convert -O qcow2 -c result/nixos.qcow2 nixos-lima-${{ env.HOST_ARCH }}.qcow2
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nixos-lima-${{ env.HOST_ARCH }}
+          path: nixos-lima-${{ env.HOST_ARCH }}.qcow2
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: master
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          path: artifacts/
+
+      - name: Prepare release assets
+        id: prep
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          mv artifacts/nixos-lima-aarch64/nixos-lima-aarch64.qcow2 "nixos-lima-${TAG}-aarch64.qcow2"
+          mv artifacts/nixos-lima-x86_64/nixos-lima-x86_64.qcow2 "nixos-lima-${TAG}-x86_64.qcow2"
+
+          AARCH64_SHA512=$(sha512sum "nixos-lima-${TAG}-aarch64.qcow2" | cut -d' ' -f1)
+          X86_64_SHA512=$(sha512sum "nixos-lima-${TAG}-x86_64.qcow2" | cut -d' ' -f1)
+          echo "aarch64_sha512=${AARCH64_SHA512}" >> "$GITHUB_OUTPUT"
+          echo "x86_64_sha512=${X86_64_SHA512}" >> "$GITHUB_OUTPUT"
+
+          echo "Release ${TAG}"
+          echo "  aarch64 sha512: ${AARCH64_SHA512}"
+          echo "  x86_64  sha512: ${X86_64_SHA512}"
+
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.prep.outputs.tag }}"
+          gh release create "$TAG" \
+            --title "Release $TAG" \
+            --generate-notes \
+            "nixos-lima-${TAG}-aarch64.qcow2" \
+            "nixos-lima-${TAG}-x86_64.qcow2"
+
+      - name: Update nixos.yaml with new image URLs and digests
+        run: |
+          TAG="${{ steps.prep.outputs.tag }}"
+          AARCH64_SHA512="${{ steps.prep.outputs.aarch64_sha512 }}"
+          X86_64_SHA512="${{ steps.prep.outputs.x86_64_sha512 }}"
+          REPO="${GITHUB_REPOSITORY}"
+
+          python3 << 'PYEOF'
+          import os, sys
+
+          tag = os.environ.get("TAG", "")
+          aarch64_sha = os.environ.get("AARCH64_SHA512", "")
+          x86_64_sha = os.environ.get("X86_64_SHA512", "")
+          repo = os.environ.get("REPO", "")
+
+          with open("nixos.yaml") as f:
+              lines = f.readlines()
+
+          new_lines = []
+          last_arch = None
+          for line in lines:
+              if "releases/download/" in line and "aarch64" in line:
+                  line = f'  - location: "https://github.com/{repo}/releases/download/{tag}/nixos-lima-{tag}-aarch64.qcow2"\n'
+              elif "releases/download/" in line and "x86_64" in line:
+                  line = f'  - location: "https://github.com/{repo}/releases/download/{tag}/nixos-lima-{tag}-x86_64.qcow2"\n'
+
+              if 'arch: "aarch64"' in line:
+                  last_arch = "aarch64"
+              elif 'arch: "x86_64"' in line:
+                  last_arch = "x86_64"
+
+              if 'digest: "sha512:' in line:
+                  if last_arch == "aarch64":
+                      line = f'    digest: "sha512:{aarch64_sha}"\n'
+                  elif last_arch == "x86_64":
+                      line = f'    digest: "sha512:{x86_64_sha}"\n'
+
+              new_lines.append(line)
+
+          with open("nixos.yaml", "w") as f:
+              f.writelines(new_lines)
+          PYEOF
+
+      - name: Commit and push nixos.yaml
+        run: |
+          TAG="${{ steps.prep.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add nixos.yaml
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "nixos.yaml: update images to ${TAG}"
+          git push origin master
