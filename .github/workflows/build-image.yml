@@ -101,8 +101,9 @@ jobs:
           QEMU_SYSTEM_AARCH64: ${{ env.HOST_ARCH == 'aarch64' && 'qemu-system-aarch64 -machine virt -cpu max' || 'qemu-system-aarch64' }}
         run: |
           set -eux
-          # Override vz/virtiofs (Apple Silicon only) to qemu/reverse-sshfs for CI compatibility
-          limactl start ${{ env.LIMA_VM_TYPE }} --arch ${{ matrix.guest-arch }} --name=${{ env.GUEST_HOST_NAME }} --network=lima:user-v2 --set '.vmType = "qemu" | .mountType = "reverse-sshfs" | del(.vmOpts) | .user.name = "${{ env.GUEST_USER }}"' nixos-result.yaml
+          # Override vz/virtiofs (Apple Silicon only) to qemu/9p for CI compatibility
+          # 9p doesn't require fuse allow_other (reverse-sshfs does, which fails in CI)
+          limactl start ${{ env.LIMA_VM_TYPE }} --arch ${{ matrix.guest-arch }} --name=${{ env.GUEST_HOST_NAME }} --network=lima:user-v2 --set '.vmType = "qemu" | .mountType = "9p" | del(.vmOpts) | .mounts[0]["9p"].cache = "mmap" | .mounts[1]["9p"].cache = "mmap" | .user.name = "${{ env.GUEST_USER }}"' nixos-result.yaml
 
       - name: "Update and Rebuild NixOS"
         shell: 'nix develop -c bash -e {0}'
